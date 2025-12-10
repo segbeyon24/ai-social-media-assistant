@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+httpx
+cryptography
+databases[postgresql]
+psycopg2-binary
+python-dotenv
+PyJWT
+rq
+redis
+pypdf
+beautifulsoup4
+pgvector
+google-genai
+bcrypt 
+pydantic[email]
