@@ -1,160 +1,119 @@
+# app/instagram/instagram_api.py
 """
-Instagram API Integration for AI Social Manager v0.3
+Instagram API helpers built on top of instagrapi sessions stored encrypted in social_accounts.access_token.
+Provides endpoints to:
+- list posts
+- get post details (comments, likes)
+- publish photo/video
+- internal helper `publish_now_internal` used by main.py scheduled publisher
 
-Assumes:
-- Token stored encrypted in user_social_tokens
-- User has an Instagram Business Account linked to a Facebook Page
-
-Exposes:
-- Get IG Business Account
-- Get posts
-- Get reels
-- Get comments
-- Get insights
+Note: instagrapi must be installed. This file uses Client.import_settings to restore session.
 """
-
 import os
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from cryptography.fernet import Fernet
-from .auth_supabase import verify_supabase_jwt
-from .db import db
+from typing import Optional, List
+from instagrapi import Client
+from app.auth_supabase import verify_supabase_jwt
+from app.db import db
+from app.utils.crypto import encrypt, decrypt
 
 router = APIRouter()
 
-FERNET_KEY = os.getenv("FERNET_KEY")
-fernet = Fernet(FERNET_KEY.encode())
-
-
-# --------------------------- Helper: Fetch Token ---------------------------
-
-async def get_token(user_id: str):
-    row = await db.fetch_one(
-        "SELECT encrypted_token FROM user_social_tokens WHERE user_id = :uid AND platform = 'instagram'",
-        {"uid": user_id}
-    )
+async def _load_client_from_user(user_id: str):
+    row = await db.fetch_one("SELECT access_token, provider_user_id FROM social_accounts WHERE user_id = :u AND provider = 'instagram'", values={"u": user_id})
     if not row:
-        raise HTTPException(400, "Instagram not connected")
-
+        raise HTTPException(404, "instagram not connected")
+    enc = row['access_token']
     try:
-        return fernet.decrypt(row["encrypted_token"].encode()).decode()
-    except:
-        raise HTTPException(500, "Token decryption failed")
+        sess = decrypt(enc)
+    except Exception as e:
+        raise HTTPException(500, f'session decrypt failed: {e}')
+    c = Client()
+    # instagrapi expects dict-like settings; we eval (careful)
+    try:
+        settings = eval(sess)
+    except Exception as e:
+        raise HTTPException(500, f'invalid session blob: {e}')
+    c.set_settings_dict(settings)
+    try:
+        c.login_by_session(settings)
+    except Exception:
+        # fallback: import settings
+        try:
+            c.set_settings_dict(settings)
+            c.relogin()
+        except Exception as e2:
+            raise HTTPException(500, f'failed to restore session: {e2}')
+    return c
 
-
-# --------------------------- Helper: Fetch IG Business Account ---------------------------
-
-async def get_business_account(token: str):
-    """
-    Step 1: Get Facebook Pages linked to user
-    Step 2: Get Instagram Business Account ID
-    """
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            "https://graph.facebook.com/v18.0/me/accounts",
-            params={"access_token": token},
-        )
-
-    data = r.json()
-    pages = data.get("data", [])
-
-    if not pages:
-        raise HTTPException(400, "No Facebook pages found for this user")
-
-    # Look for IG connected account
-    for page in pages:
-        page_id = page["id"]
-
-        async with httpx.AsyncClient() as client:
-            r = await client.get(
-                f"https://graph.facebook.com/v18.0/{page_id}",
-                params={"fields": "instagram_business_account", "access_token": token},
-            )
-
-        obj = r.json()
-        ig_acc = obj.get("instagram_business_account", {})
-        if ig_acc.get("id"):
-            return ig_acc["id"]
-
-    raise HTTPException(400, "No Instagram Business Account connected")
-
-
-# --------------------------- ROUTES ---------------------------
-
-@router.get("/me")
+@router.get('/me')
 async def me(jwt_payload=Depends(verify_supabase_jwt)):
-    user_id = jwt_payload.get("sub")
-    token = await get_token(user_id)
-    ig_id = await get_business_account(token)
-    return {"instagram_business_account_id": ig_id}
+    user_id = jwt_payload.get('sub')
+    row = await db.fetch_one("SELECT provider_user_id FROM social_accounts WHERE user_id = :u AND provider = 'instagram'", values={"u": user_id})
+    if not row:
+        raise HTTPException(404, 'not connected')
+    return {"provider_user_id": row['provider_user_id']}
 
+@router.get('/posts')
+async def list_posts(jwt_payload=Depends(verify_supabase_jwt)):
+    user_id = jwt_payload.get('sub')
+    c = await _load_client_from_user(user_id)
+    medias = c.user_medias(c.user_id, 50)
+    result = []
+    for m in medias:
+        result.append({
+            'id': m.pk,
+            'media_type': m.media_type,
+            'caption': m.caption,
+            'like_count': m.like_count,
+            'comment_count': m.comment_count,
+            'taken_at': m.taken_at.isoformat() if m.taken_at else None,
+        })
+    return {'posts': result}
 
-@router.get("/posts")
-async def get_posts(jwt_payload=Depends(verify_supabase_jwt)):
-    user_id = jwt_payload.get("sub")
-    token = await get_token(user_id)
-    ig_id = await get_business_account(token)
+@router.get('/post/{post_id}')
+async def get_post(post_id: int, jwt_payload=Depends(verify_supabase_jwt)):
+    user_id = jwt_payload.get('sub')
+    c = await _load_client_from_user(user_id)
+    m = c.media_info(post_id)
+    return {'id': m.pk, 'caption': m.caption, 'comments': [com.dict() for com in c.media_comments(m.pk, 50)]}
 
-    url = f"https://graph.facebook.com/v18.0/{ig_id}/media"
-    async with httpx.AsyncClient() as client:
-        r = await client.get(url, params={"access_token": token})
+@router.post('/publish')
+async def publish_photo(media_url: str, caption: Optional[str] = None, jwt_payload=Depends(verify_supabase_jwt)):
+    user_id = jwt_payload.get('sub')
+    c = await _load_client_from_user(user_id)
+    # download and upload handled by instagrapi via URL
+    try:
+        res = c.photo_upload_url(media_url, caption or '')
+    except Exception as e:
+        raise HTTPException(500, f'publish failed: {e}')
+    # store post
+    await db.execute("INSERT INTO posts (user_id, platform, platform_post_id, content, created_at) VALUES (:u,'instagram',:pp,:c,NOW())", values={"u": user_id, "pp": str(res), "c": caption or ''})
+    return {'platform_post_id': str(res)}
 
-    return r.json()
-
-
-@router.get("/reels")
-async def get_reels(jwt_payload=Depends(verify_supabase_jwt)):
-    user_id = jwt_payload.get("sub")
-    token = await get_token(user_id)
-    ig_id = await get_business_account(token)
-
-    url = f"https://graph.facebook.com/v18.0/{ig_id}/media"
-    params = {
-        "fields": "media_type,media_url,thumbnail_url,timestamp,username,caption",
-        "access_token": token,
-    }
-
-    async with httpx.AsyncClient() as client:
-        r = await client.get(url, params=params)
-
-    # Only return reels
-    data = r.json()
-    reels = [m for m in data.get("data", []) if m.get("media_type") == "VIDEO"]
-    return {"reels": reels}
-
-
-@router.get("/comments")
-async def get_comments(post_id: str, jwt_payload=Depends(verify_supabase_jwt)):
-    user_id = jwt_payload.get("sub")
-    token = await get_token(user_id)
-
-    url = f"https://graph.facebook.com/v18.0/{post_id}/comments"
-    params = {"access_token": token}
-
-    async with httpx.AsyncClient() as client:
-        r = await client.get(url, params=params)
-
-    return r.json()
-
-
-@router.get("/insights")
-async def insights(post_id: str, jwt_payload=Depends(verify_supabase_jwt)):
-    """
-    Get insights for one post:
-    - impressions
-    - reach
-    - engagement
-    """
-    user_id = jwt_payload.get("sub")
-    token = await get_token(user_id)
-
-    url = f"https://graph.facebook.com/v18.0/{post_id}/insights"
-    params = {
-        "metric": "impressions,reach,engagement",
-        "access_token": token,
-    }
-
-    async with httpx.AsyncClient() as client:
-        r = await client.get(url, params=params)
-
-    return r.json()
+# internal helper used by main.publish_now and scheduled jobs
+async def publish_now_internal(account_row, content: str, media: Optional[List[str]], access_token_blob: Optional[str] = None):
+    # account_row is the full social_accounts row
+    # access_token_blob if provided is the encrypted session
+    enc = account_row.get('access_token') or access_token_blob
+    if not enc:
+        raise HTTPException(401, 'no session')
+    try:
+        sess = decrypt(enc)
+    except Exception as e:
+        raise HTTPException(500, f'session decrypt: {e}')
+    c = Client()
+    settings = eval(sess)
+    c.set_settings_dict(settings)
+    try:
+        c.login_by_session(settings)
+    except Exception:
+        try:
+            c.relogin()
+        except Exception as e:
+            raise HTTPException(500, f'relogin failed: {e}')
+    if not media or len(media)==0:
+        raise HTTPException(400, 'media required for IG publish')
+    media_url = media[0]
+    res = c.photo_upload_url(media_url, content or '')
+    return {'platform_post_id': str(res)}
