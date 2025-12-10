@@ -20,5 +20,6 @@ asyncpg
 psycopg 
 instagrapi 
 google-api-python-client 
-google-auth google-auth-oauthlib 
+google-auth 
+google-auth-oauthlib 
 apscheduler
