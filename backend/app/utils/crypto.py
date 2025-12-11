@@ -1,37 +1,45 @@
-# scripts/run_migrations.py
-"""
-Utility script to run SQL migrations against your DATABASE_URL.
-Usage (locally):
-  python scripts/run_migrations.py
+# backend/app/utils/crypto.py
 
-It expects env var DATABASE_URL to be set (Supabase connection string) and will execute the sql file migrations/sql_migrations_v1.sql
-
-Note: This script uses psycopg (psycopg2). If not installed, run `pip install psycopg[binary]` or adapt to use asyncpg.
-"""
 import os
-import sys
+from cryptography.fernet import Fernet
+from fastapi import HTTPException
 
-SQL_PATH = os.path.join(os.path.dirname(__file__), '..', 'migrations', 'sql_migrations_v1.sql')
-DATABASE_URL = os.getenv('DATABASE_URL')
+# --- Initialization ---
 
-if not DATABASE_URL:
-    print('DATABASE_URL environment variable must be set')
-    sys.exit(1)
+# 1. Load the Fernet encryption key from the environment
+# NOTE: The key must be a 32-byte URL-safe base64 encoded string.
+FERNET_KEY = os.getenv("FERNET_KEY")
+
+if not FERNET_KEY:
+    # This ensures the application fails fast if the key is missing on startup
+    raise RuntimeError("FERNET_KEY environment variable must be set for encryption utilities.")
 
 try:
-    import psycopg
-except Exception:
-    print('psycopg not installed. Install with: pip install psycopg[binary]')
-    sys.exit(1)
+    # 2. Initialize the Fernet cipher object
+    fernet = Fernet(FERNET_KEY.encode())
+except Exception as e:
+    raise RuntimeError(f"Failed to initialize Fernet cipher: {e}")
 
-with open(SQL_PATH, 'r') as fh:
-    sql = fh.read()
+# --- Encryption/Decryption Functions ---
 
-print('Running migrations...')
+def encrypt(data: str) -> str:
+    """Encrypts a string using the Fernet cipher."""
+    try:
+        # data is a string, needs to be encoded to bytes before encryption
+        return fernet.encrypt(data.encode()).decode()
+    except Exception as e:
+        # Log the actual error, but raise a generic one
+        print(f"Encryption failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to encrypt data.")
 
-with psycopg.connect(DATABASE_URL) as conn:
-    with conn.cursor() as cur:
-        cur.execute(sql)
-        conn.commit()
+def decrypt(data: str) -> str:
+    """Decrypts a Fernet-encrypted string."""
+    try:
+        # data is an encrypted string (base64), needs to be encoded to bytes for decryption
+        return fernet.decrypt(data.encode()).decode()
+    except Exception as e:
+        # Log the actual error, which might be a bad key or corrupted token
+        print(f"Decryption failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to decrypt data.")
 
-print('Migrations executed successfully')
+# --- End of backend/app/utils/crypto.py ---
