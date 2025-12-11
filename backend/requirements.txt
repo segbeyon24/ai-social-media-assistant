@@ -18,8 +18,10 @@ python-jose
 databases[postgresql]
 asyncpg 
 psycopg 
-instagrapi 
+ 
 google-api-python-client 
 google-auth 
 google-auth-oauthlib 
 apscheduler
+
+#instagrapi
