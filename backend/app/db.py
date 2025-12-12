@@ -6,12 +6,15 @@ import os
 from databases import Database
 from sqlalchemy import create_engine, MetaData
 
-DATABASE_URL = os.getenv('DATABASE_URL')
-if not DATABASE_URL:
-    # In Supabase, use the full postgres connection string (service_role key recommended for server)
-    raise RuntimeError('DATABASE_URL env var must be set to your Supabase Postgres URL')
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-db = Database(DATABASE_URL)
+# Render Postgres session mode supports very few concurrent DB connections.
+database = Database(
+    DATABASE_URL,
+    min_size=1,
+    max_size=2  # NEVER exceed 2 on Render free/basic Postgres.
+)
+
 engine = create_engine(DATABASE_URL)
 metadata = MetaData()
 
