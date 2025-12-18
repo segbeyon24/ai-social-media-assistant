@@ -121,6 +121,88 @@ async def _shutdown():
 async def health():
     return {"status": "ok", "ts": int(time.time())}
 
+@app.get("/")
+async def home():
+    """
+    Lightweight home endpoint.
+    Used by frontend to verify backend is alive and versioned.
+    """
+    return {
+        "app": "AI Social Manager",
+        "version": "0.5",
+        "status": "running",
+        "auth": "supabase",
+        "features": [
+            "ai_generate",
+            "social_accounts",
+            "publish_now",
+            "scheduling",
+            "analytics"
+        ],
+        "ts": int(time.time())
+    }
+
+@app.get("/me")
+async def me(jwt_payload=Depends(verify_supabase_jwt)):
+    """
+    Canonical user dashboard endpoint.
+    Used by frontend /me route.
+    """
+    user_id = jwt_payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="unauthenticated")
+
+    # Social accounts summary
+    accounts = await db.fetch_all(
+        """
+        SELECT provider, COUNT(*) as count
+        FROM social_accounts
+        WHERE user_id = :uid
+        GROUP BY provider
+        """,
+        values={"uid": user_id},
+    )
+
+    # Posts summary
+    posts_count = await db.fetch_one(
+        "SELECT COUNT(*) AS cnt FROM posts WHERE user_id = :uid",
+        values={"uid": user_id},
+    )
+
+    # Scheduled posts
+    scheduled_count = await db.fetch_one(
+        """
+        SELECT COUNT(*) AS cnt
+        FROM scheduled_posts
+        WHERE user_id = :uid AND status = 'pending'
+        """,
+        values={"uid": user_id},
+    )
+
+    # AI keys
+    ai_keys = await db.fetch_all(
+        "SELECT provider, created_at FROM user_api_keys WHERE user_id = :uid",
+        values={"uid": user_id},
+    )
+
+    return {
+        "user": {
+            "id": user_id,
+            # you can enrich later from Supabase profile table if needed
+        },
+        "stats": {
+            "posts_total": posts_count["cnt"] if posts_count else 0,
+            "scheduled_pending": scheduled_count["cnt"] if scheduled_count else 0,
+            "connected_accounts": {row["provider"]: row["count"] for row in accounts},
+            "ai_keys": [dict(k) for k in ai_keys],
+        },
+        "quick_actions": [
+            "generate_post",
+            "connect_social_account",
+            "schedule_post"
+        ],
+        "ts": int(time.time()),
+    }
 
 # ---- AI keys endpoints ----
 @app.post("/user/ai-key")
