@@ -7,16 +7,20 @@ export default function App() {
   const setSession = useAuthStore((s) => s.setSession);
 
   useEffect(() => {
+    // Hydrate session from URL hash or storage
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session ?? null);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Listen for future auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
     return () => {
-      listener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, [setSession]);
 
