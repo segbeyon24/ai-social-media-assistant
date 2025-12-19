@@ -1,0 +1,33 @@
+{
+  "name": "lean-social-frontend",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.33.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "axios": "^1.5.0",
+    "framer-motion": "^12.23.26",
+    "lucide-react": "^0.562.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.18.0",
+    "recharts": "^3.6.0",
+    "tailwindcss": "^4.1.18",
+    "zustand": "^5.0.9"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "typescript": "^5.6.0",
+    "vite": "^5.1.0"
+  }
+}
