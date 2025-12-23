@@ -1,0 +1,33 @@
+:root {
+  --bg-main: #ffffff;
+  --bg-muted: #f5f5f5;
+  --text-main: #0a0a0a;
+  --text-muted: #555;
+  --border-color: #e5e5e5;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --transition-fast: 150ms ease;
+  --transition-medium: 300ms ease;
+}
+
+/* Mood system hooks (set via JS on session start) */
+[data-mood="calm"] {
+  --bg-main: #ffffff;
+  --bg-muted: #f7f8f9;
+}
+
+[data-mood="focused"] {
+  --bg-main: #fbfbfb;
+  --bg-muted: #f0f0f0;
+}
+
+[data-mood="dark"] {
+  --bg-main: #0f0f0f;
+  --bg-muted: #1a1a1a;
+  --text-main: #ffffff;
+  --text-muted: #aaa;
+  --border-color: #2a2a2a;
+}

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useAuth } from "../state/auth";
+import { useAuth } from "../../state/auth";
 
 export default function Home() {
   const { session, loading } = useAuth();
