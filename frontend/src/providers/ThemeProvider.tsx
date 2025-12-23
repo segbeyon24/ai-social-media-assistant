@@ -1,5 +1,5 @@
 import { ReactNode, useEffect } from "react";
-import { useMoodStore } from "../../state/mood";
+import { useMoodStore } from "../state/mood";
 
 interface Props {
   children: ReactNode;

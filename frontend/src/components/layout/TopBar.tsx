@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Clock, LayoutGrid } from "lucide-react";
-import IconButton from "../ui/IconButton";
+import { IconButton } from "../ui/IconButton";
 
 type TopTab = "history" | "feeds";
 

@@ -1,6 +1,6 @@
 import { ReactNode, useEffect } from "react";
-import { supabase } from "../../lib/supabase";
-import { useAuthStore } from "../../state/auth";
+import { supabase } from "../lib/supabase";
+import { useAuthStore } from "../state/auth";
 
 interface Props {
   children: ReactNode;
