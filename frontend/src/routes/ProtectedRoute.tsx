@@ -10,11 +10,9 @@ export default function ProtectedRoute({ children }: Props) {
   const { isAuthenticated, isLoading } = useAuthStore();
 
   if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center text-sm text-neutral-500">
-        Checking session…
-      </div>
-    );
+    return <div className="h-screen flex items-center justify-center text-sm text-neutral-500">
+      Loading…
+    </div>;
   }
 
   if (!isAuthenticated) {
