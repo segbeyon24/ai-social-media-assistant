@@ -8,6 +8,7 @@ import Login from "../pages/Auth/Login";
 import Signup from "../pages/Auth/Signup";
 import Workspace from "../pages/Workspace/Workspace";
 import NotFound from "../pages/NotFound";
+import AuthCallback from "../pages/Auth/AuthCallback";
 
 export function AppRouter() {
   return (
@@ -32,6 +33,9 @@ export function AppRouter() {
           </PublicRoute>
         }
       />
+
+      {/* OAuth callback (MUST be public) */}
+      <Route path="/auth/callback" element={<AuthCallback />} />
 
       {/* Protected */}
       <Route
