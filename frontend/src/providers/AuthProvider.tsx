@@ -13,8 +13,8 @@ export function AuthProvider({ children }: Props) {
   useEffect(() => {
     let mounted = true;
 
-    const initAuth = async () => {
-      // 1️⃣ Handle OAuth hash once (CRITICAL FIX)
+    const init = async () => {
+      // 🔑 Remove OAuth hash safely
       if (window.location.hash.includes("access_token")) {
         window.history.replaceState(
           {},
@@ -23,24 +23,20 @@ export function AuthProvider({ children }: Props) {
         );
       }
 
-      // 2️⃣ Hydrate existing session (storage or OAuth)
+      // 🔑 Hydrate session ONCE
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
 
       setSession(data.session ?? null);
     };
 
-    initAuth();
+    init();
 
-    // 3️⃣ Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setSession(session);
-      } else {
-        clear();
-      }
+      if (!mounted) return;
+      session ? setSession(session) : clear();
     });
 
     return () => {

@@ -6,7 +6,6 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-
   setSession: (session: Session | null) => void;
   clear: () => void;
 }
@@ -21,9 +20,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       session,
       user: session?.user ?? null,
-      isAuthenticated: Boolean(session),
-      //isAuthenticated: !!session,
-      isLoading: false,
+      isAuthenticated: !!session,
+      isLoading: false, // 🔑 ONLY turns false here
     }),
 
   clear: () =>
@@ -34,27 +32,3 @@ export const useAuthStore = create<AuthState>((set) => ({
       isLoading: false,
     }),
 }));
-
-/**
- * Public auth hook used by pages/components
- * This is what you import everywhere.
- */
-export function useAuth() {
-  const {
-    session,
-    user,
-    isAuthenticated,
-    isLoading,
-    setSession,
-    clear,
-  } = useAuthStore();
-
-  return {
-    session,
-    user,
-    isAuthenticated,
-    isLoading,
-    setSession,
-    logout: clear,
-  };
-}
