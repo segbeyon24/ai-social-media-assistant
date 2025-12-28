@@ -7,6 +7,7 @@ interface Props {
 }
 
 export function AuthProvider({ children }: Props) {
+  const hydrate = useAuthStore((s) => s.hydrate);
   const setSession = useAuthStore((s) => s.setSession);
   const clear = useAuthStore((s) => s.clear);
 
@@ -14,20 +15,15 @@ export function AuthProvider({ children }: Props) {
     let mounted = true;
 
     const init = async () => {
-      // 🔑 Remove OAuth hash safely
+      // Remove OAuth hash
       if (window.location.hash.includes("access_token")) {
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname
-        );
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
 
-      // 🔑 Hydrate session ONCE
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
 
-      setSession(data.session ?? null);
+      hydrate(data.session ?? null);
     };
 
     init();
@@ -35,15 +31,15 @@ export function AuthProvider({ children }: Props) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      session ? setSession(session) : clear();
+      if (session) setSession(session);
+      else clear();
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [setSession, clear]);
+  }, [hydrate, setSession, clear]);
 
   return <>{children}</>;
 }

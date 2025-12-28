@@ -6,6 +6,8 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+
+  hydrate: (session: Session | null) => void;
   setSession: (session: Session | null) => void;
   clear: () => void;
 }
@@ -16,13 +18,23 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isLoading: true,
 
-  setSession: (session) =>
+  // 🔑 ONLY called once on app start
+  hydrate: (session) =>
     set({
       session,
       user: session?.user ?? null,
-      isAuthenticated: !!session,
-      isLoading: false, // 🔑 ONLY turns false here
+      isAuthenticated: Boolean(session),
+      isLoading: false,
     }),
+
+  // 🔄 Called on auth changes AFTER hydration
+  setSession: (session) =>
+    set((state) => ({
+      session,
+      user: session?.user ?? null,
+      isAuthenticated: Boolean(session),
+      isLoading: state.isLoading, // 👈 DO NOT TOUCH loading here
+    })),
 
   clear: () =>
     set({
@@ -39,7 +51,7 @@ export function useAuth() {
     user,
     isAuthenticated,
     isLoading,
-    setSession,
+    hydrate,
     clear,
   } = useAuthStore();
 
@@ -48,8 +60,7 @@ export function useAuth() {
     user,
     isAuthenticated,
     isLoading,
-    setSession,
+    hydrate,
     logout: clear,
   };
 }
-
