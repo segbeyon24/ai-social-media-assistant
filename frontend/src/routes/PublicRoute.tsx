@@ -10,9 +10,11 @@ export default function PublicRoute({ children }: Props) {
   const { isAuthenticated, isLoading } = useAuthStore();
 
   if (isLoading) {
-    return <div className="h-screen flex items-center justify-center text-sm text-neutral-500">
-      Loading…
-    </div>;
+    return (
+      <div className="flex h-screen items-center justify-center text-sm text-neutral-500">
+        Loading…
+      </div>
+    );
   }
 
   if (isAuthenticated) {
