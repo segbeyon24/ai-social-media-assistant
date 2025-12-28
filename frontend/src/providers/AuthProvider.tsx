@@ -13,19 +13,33 @@ export function AuthProvider({ children }: Props) {
   useEffect(() => {
     let mounted = true;
 
-    const init = async () => {
-      const { data } = await supabase.auth.getSession();
+    const bootstrapAuth = async () => {
+      // ⏳ Wait for Supabase to finish reading storage + OAuth
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (!mounted) return;
-      setSession(data.session ?? null);
+
+      if (session) {
+        setSession(session);
+      } else {
+        clear(); // 👈 IMPORTANT: ends loading state
+      }
     };
 
-    init();
+    bootstrapAuth();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) setSession(session);
-      else clear();
+      if (!mounted) return;
+
+      if (session) {
+        setSession(session);
+      } else {
+        clear();
+      }
     });
 
     return () => {
