@@ -32,3 +32,24 @@ export const useAuthStore = create<AuthState>((set) => ({
       isLoading: false,
     }),
 }));
+
+export function useAuth() {
+  const {
+    session,
+    user,
+    isAuthenticated,
+    isLoading,
+    setSession,
+    clear,
+  } = useAuthStore();
+
+  return {
+    session,
+    user,
+    isAuthenticated,
+    isLoading,
+    setSession,
+    logout: clear,
+  };
+}
+
