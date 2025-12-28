@@ -7,6 +7,7 @@ interface Props {
 }
 
 export function AuthProvider({ children }: Props) {
+  const hydrate = useAuthStore((s) => s.hydrate);
   const setSession = useAuthStore((s) => s.setSession);
   const clear = useAuthStore((s) => s.clear);
 
@@ -14,18 +15,14 @@ export function AuthProvider({ children }: Props) {
     let mounted = true;
 
     const bootstrapAuth = async () => {
-      // ⏳ Wait for Supabase to finish reading storage + OAuth
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!mounted) return;
 
-      if (session) {
-        setSession(session);
-      } else {
-        clear(); // 👈 IMPORTANT: ends loading state
-      }
+      // 🔑 THIS IS THE CRITICAL LINE
+      hydrate(session ?? null);
     };
 
     bootstrapAuth();
@@ -36,7 +33,7 @@ export function AuthProvider({ children }: Props) {
       if (!mounted) return;
 
       if (session) {
-        setSession(session);
+        setSession(session); // loading already false
       } else {
         clear();
       }
@@ -46,7 +43,7 @@ export function AuthProvider({ children }: Props) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [setSession, clear]);
+  }, [hydrate, setSession, clear]);
 
   return <>{children}</>;
 }
