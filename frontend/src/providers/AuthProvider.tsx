@@ -7,7 +7,6 @@ interface Props {
 }
 
 export function AuthProvider({ children }: Props) {
-  const hydrate = useAuthStore((s) => s.hydrate);
   const setSession = useAuthStore((s) => s.setSession);
   const clear = useAuthStore((s) => s.clear);
 
@@ -15,15 +14,9 @@ export function AuthProvider({ children }: Props) {
     let mounted = true;
 
     const init = async () => {
-      // Remove OAuth hash
-      if (window.location.hash.includes("access_token")) {
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-
-      hydrate(data.session ?? null);
+      setSession(data.session ?? null);
     };
 
     init();
@@ -39,7 +32,7 @@ export function AuthProvider({ children }: Props) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [hydrate, setSession, clear]);
+  }, [setSession, clear]);
 
   return <>{children}</>;
 }
